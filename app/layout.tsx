@@ -5,7 +5,7 @@ import { AuthProvider } from '@/components/auth/auth-provider';
 import { Toaster } from '@/components/ui/toaster';
 import { Footer } from '@/components/layout/footer';
 import { OrganizationSchema } from '@/components/seo/schema';
-import Navbar from '@/components/layout/navbar'
+import Navbar from '@/components/layout/navbar';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -63,7 +63,7 @@ export const metadata: Metadata = {
     },
   },
   verification: {
-    google: 'your-google-verification-code', // À remplacer
+    google: 'your-google-verification-code',
   },
 };
 
@@ -79,9 +79,15 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <AuthProvider>
-  <Navbar />
-  {children}
-</AuthProvider>
+          <div className="flex flex-col min-h-screen">
+            <Navbar />
+            <main className="flex-1">
+              {children}
+            </main>
+            <Footer />
+          </div>
+        </AuthProvider>
+        <Toaster />
       </body>
     </html>
   );
