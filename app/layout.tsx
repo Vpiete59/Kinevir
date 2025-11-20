@@ -3,7 +3,6 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { AuthProvider } from '@/components/auth/auth-provider';
 import { Toaster } from '@/components/ui/toaster';
-import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 import { OrganizationSchema } from '@/components/seo/schema';
 import Navbar from '@/components/layout/navbar'
