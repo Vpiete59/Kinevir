@@ -1,108 +1,102 @@
-'use client';
+'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react';
-import { User } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+import { createContext, useContext, useEffect, useState } from 'react'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { User } from '@supabase/supabase-js'
+import { useRouter } from 'next/navigation'
 
-interface AuthContextType {
-  user: User | null;
-  loading: boolean;
-  isPractitioner: boolean;
-  practitionerId: string | null;
-  signUp: (email: string, password: string) => Promise<void>;
-  signIn: (email: string, password: string) => Promise<void>;
-  signOut: () => Promise<void>;
+type AuthContextType = {
+  user: User | null
+  profile: any | null
+  loading: boolean
+  signOut: () => Promise<void>
+  refreshProfile: () => Promise<void>
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  profile: null,
+  loading: true,
+  signOut: async () => {},
+  refreshProfile: async () => {},
+})
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isPractitioner, setIsPractitioner] = useState(false);
-  const [practitionerId, setPractitionerId] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null)
+  const [profile, setProfile] = useState<any | null>(null)
+  const [loading, setLoading] = useState(true)
+  const supabase = createClientComponentClient()
+  const router = useRouter()
+
+  const fetchProfile = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single()
+
+    if (!error && data) {
+      setProfile(data)
+    }
+  }
+
+  const refreshProfile = async () => {
+    if (user) {
+      await fetchProfile(user.id)
+    }
+  }
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setUser(session?.user ?? null);
+    // Récupérer la session initiale
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null)
       if (session?.user) {
-        await checkPractitionerStatus(session.user.id);
+        fetchProfile(session.user.id)
       }
-      setLoading(false);
-    });
+      setLoading(false)
+    })
 
+    // Écouter les changements d'authentification
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      (async () => {
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          await checkPractitionerStatus(session.user.id);
-        } else {
-          setIsPractitioner(false);
-          setPractitionerId(null);
-        }
-        setLoading(false);
-      })();
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const checkPractitionerStatus = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('practitioners')
-        .select('id')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (!error && data) {
-        setIsPractitioner(true);
-        setPractitionerId(data.id);
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event)
+      setUser(session?.user ?? null)
+      
+      if (session?.user) {
+        await fetchProfile(session.user.id)
       } else {
-        setIsPractitioner(false);
-        setPractitionerId(null);
+        setProfile(null)
       }
-    } catch (err) {
-      console.error('Error checking practitioner status:', err);
-      setIsPractitioner(false);
-      setPractitionerId(null);
-    }
-  };
+      
+      setLoading(false)
+      
+      // Rafraîchir la page pour mettre à jour les Server Components
+      router.refresh()
+    })
 
-  const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-    if (error) throw error;
-  };
-
-  const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) throw error;
-  };
+    return () => subscription.unsubscribe()
+  }, [supabase, router])
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
-  };
+    await supabase.auth.signOut()
+    setUser(null)
+    setProfile(null)
+    router.push('/')
+    router.refresh()
+  }
 
   return (
-    <AuthContext.Provider value={{ user, loading, isPractitioner, practitionerId, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, profile, loading, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
-  );
+  )
 }
 
-export function useAuth() {
-  const context = useContext(AuthContext);
+export const useAuth = () => {
+  const context = useContext(AuthContext)
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error('useAuth must be used within an AuthProvider')
   }
-  return context;
+  return context
 }

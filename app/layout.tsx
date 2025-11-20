@@ -6,6 +6,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 import { OrganizationSchema } from '@/components/seo/schema';
+import Navbar from '@/components/layout/navbar'
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -79,13 +80,9 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <AuthProvider>
-          <div className="flex flex-col min-h-screen">
-            <Header />
-            <div className="flex-1">{children}</div>
-            <Footer />
-          </div>
-          <Toaster />
-        </AuthProvider>
+  <Navbar />
+  {children}
+</AuthProvider>
       </body>
     </html>
   );
