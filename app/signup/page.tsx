@@ -11,7 +11,7 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
-  const [role, setRole] = useState<'patient' | 'practitioner'>('patient')
+  const [role] = useState<'patient'>('patient')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
@@ -114,36 +114,6 @@ export default function SignupPage() {
         )}
 
         <form onSubmit={handleSignup} className="space-y-4">
-          {/* Choix du rôle */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Je suis
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setRole('patient')}
-                className={`py-3 px-4 rounded-lg border-2 font-medium transition-all ${
-                  role === 'patient'
-                    ? 'border-blue-600 bg-blue-50 text-blue-700'
-                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Patient
-              </button>
-              <button
-                type="button"
-                onClick={() => setRole('practitioner')}
-                className={`py-3 px-4 rounded-lg border-2 font-medium transition-all ${
-                  role === 'practitioner'
-                    ? 'border-blue-600 bg-blue-50 text-blue-700'
-                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Praticien
-              </button>
-            </div>
-          </div>
 
           {/* Nom et Prénom */}
           <div className="grid grid-cols-2 gap-3">
@@ -231,7 +201,7 @@ export default function SignupPage() {
             {loading ? 'Création...' : 'Créer mon compte'}
           </button>
         </form>
-        
+
       <div className="mt-6">
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
