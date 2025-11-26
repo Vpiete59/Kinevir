@@ -1,6 +1,11 @@
 import { MetadataRoute } from 'next';
 import { supabase } from '@/lib/supabase';
 
+interface Pathology {
+  slug: string;
+  updated_at: string;
+}
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://kinevir.com';
   
@@ -10,7 +15,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     .select('slug, updated_at')
     .eq('published', true);
 
-  const pathologyUrls = pathologies?.map((pathology) => ({
+  const pathologyUrls = (pathologies as Pathology[] | null)?.map((pathology: Pathology) => ({
     url: `${baseUrl}/pathologies/${pathology.slug}`,
     lastModified: new Date(pathology.updated_at),
     changeFrequency: 'weekly' as const,
