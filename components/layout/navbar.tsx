@@ -5,7 +5,7 @@ import Image from 'next/image'
 import { useAuth } from '@/components/auth/auth-provider'
 import { useState } from 'react'
 import { usePathname } from 'next/navigation'
-import { LogIn, Menu, X } from 'lucide-react'
+import { LogIn, Menu, X, User, ChevronDown } from 'lucide-react'
 
 export default function Navbar() {
   const { user, profile, loading, signOut } = useAuth()
@@ -30,7 +30,7 @@ export default function Navbar() {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 group">
-            <div className="relative w-10 h-10 flex-shrink-0">
+            <div className="relative w-11 h-11 flex-shrink-0">
               <Image
                 src="/logo-k.webp"
                 alt="Kinevir"
@@ -39,12 +39,12 @@ export default function Navbar() {
                 priority
               />
             </div>
-            <div className="relative h-8 w-24 flex-shrink-0">
+            <div className="relative h-9 w-28 sm:h-10 sm:w-36 flex-shrink-0">
               <Image
                 src="/logo-titre.webp"
                 alt="Kinevir"
                 fill
-                className="object-contain"
+                className="object-contain object-left"
                 priority
               />
             </div>
@@ -78,7 +78,10 @@ export default function Navbar() {
             </button>
 
             {loading ? (
-              <div className="w-8 h-8 bg-gray-100 rounded-full animate-pulse"></div>
+              <div className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-400 rounded-lg text-sm font-medium">
+                <div className="w-4 h-4 border-2 border-gray-300 border-t-[#4A9BA5] rounded-full animate-spin"></div>
+                <span className="hidden sm:inline">Chargement...</span>
+              </div>
             ) : user ? (
               <>
                 {/* Bouton Espace Praticien (si praticien ou admin) */}
@@ -94,16 +97,15 @@ export default function Navbar() {
                   </Link>
                 )}
 
-                {/* Menu utilisateur */}
+                {/* Menu utilisateur connecté */}
                 <div className="relative">
                   <button
                     onClick={() => setShowMenu(!showMenu)}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#4A9BA5] text-white rounded-lg hover:bg-[#3d8a93] transition-all duration-200 text-sm font-medium shadow-sm"
+                    className="flex items-center gap-2 px-4 py-2.5 bg-[#4A9BA5] text-white rounded-lg hover:bg-[#3d8a93] transition-all duration-200 text-sm font-medium shadow-md"
                   >
+                    <User className="w-5 h-5" />
                     <span className="hidden sm:inline">{profile?.first_name || 'Mon compte'}</span>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
+                    <ChevronDown className="w-4 h-4" />
                   </button>
 
                   {showMenu && (
@@ -185,7 +187,7 @@ export default function Navbar() {
             ) : (
               <Link
                 href="/login"
-                className="hidden sm:flex items-center gap-2 px-5 py-2.5 bg-[#4A9BA5] text-white rounded-lg hover:bg-[#3d8a93] transition-all duration-200 text-sm font-medium shadow-sm"
+                className="flex items-center gap-2 px-5 py-2.5 bg-[#4A9BA5] text-white rounded-lg hover:bg-[#3d8a93] transition-all duration-200 text-sm font-medium shadow-md"
               >
                 <LogIn className="w-4 h-4" />
                 <span>Connexion</span>
