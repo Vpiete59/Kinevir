@@ -40,6 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = createClientComponentClient()
 
   const fetchProfile = async (userId: string) => {
+    console.log('Fetching profile for:', userId)
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -47,11 +48,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('id', userId)
         .single()
 
-      if (!error && data) {
+      console.log('Profile result:', { data, error })
+
+      if (error) {
+        console.error('Error fetching profile:', error)
+        // Si le profil n'existe pas, on continue quand même
+        setProfile(null)
+      } else if (data) {
         setProfile(data)
       }
     } catch (error) {
-      console.error('Error fetching profile:', error)
+      console.error('Exception fetching profile:', error)
+      setProfile(null)
     }
   }
 
@@ -70,10 +78,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    // Récupérer la session au chargement
     const getSession = async () => {
+      console.log('Getting session...')
       try {
-        const { data: { session } } = await supabase.auth.getSession()
+        const { data: { session }, error } = await supabase.auth.getSession()
+        console.log('Session result:', { session: session?.user?.email, error })
         
         if (session?.user) {
           setUser(session.user)
@@ -82,13 +91,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         console.error('Error getting session:', error)
       } finally {
+        console.log('Setting loading to false')
         setLoading(false)
       }
     }
 
     getSession()
 
-    // Écouter les changements d'auth
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth event:', event)
