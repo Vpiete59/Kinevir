@@ -1,9 +1,9 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, useCallback } from 'react'
-import { User, AuthChangeEvent, Session } from '@supabase/supabase-js'
+import { createContext, useContext, useEffect, useState } from 'react'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { User } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
-import { getSupabaseClient } from '@/lib/supabase'
 
 type Profile = {
   id: string
@@ -36,13 +36,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
-  const [initialized, setInitialized] = useState(false)
   const router = useRouter()
+  const supabase = createClientComponentClient()
 
-  // Utiliser le client Supabase singleton
-  const supabase = getSupabaseClient()
-
-  const fetchProfile = useCallback(async (userId: string) => {
+  const fetchProfile = async (userId: string) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -52,103 +49,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (!error && data) {
         setProfile(data)
-        return data
-      } else {
-        console.error('Error fetching profile:', error)
-        return null
       }
     } catch (error) {
       console.error('Error fetching profile:', error)
-      return null
     }
-  }, [supabase])
+  }
 
-  const refreshProfile = useCallback(async () => {
+  const refreshProfile = async () => {
     if (user) {
       await fetchProfile(user.id)
     }
-  }, [user, fetchProfile])
+  }
 
-  const signOut = useCallback(async () => {
-    try {
-      setLoading(true)
-      
-      // Appeler signOut sur Supabase
-      const { error } = await supabase.auth.signOut()
-      
-      if (error) {
-        console.error('Error signing out:', error)
-      }
-      
-      // Nettoyer l'état local
-      setUser(null)
-      setProfile(null)
-      
-      // Nettoyer le localStorage/sessionStorage pour Supabase
-      if (typeof window !== 'undefined') {
-        // Supprimer les clés Supabase du localStorage
-        const keysToRemove: string[] = []
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i)
-          if (key && (key.startsWith('sb-') || key.includes('supabase'))) {
-            keysToRemove.push(key)
-          }
-        }
-        keysToRemove.forEach(key => localStorage.removeItem(key))
-      }
-      
-      // Rediriger vers l'accueil
-      router.push('/')
-      router.refresh()
-      
-    } catch (error) {
-      console.error('Error during sign out:', error)
-    } finally {
-      setLoading(false)
-    }
-  }, [supabase, router])
+  const signOut = async () => {
+    await supabase.auth.signOut()
+    setUser(null)
+    setProfile(null)
+    router.push('/')
+    router.refresh()
+  }
 
   useEffect(() => {
-    if (initialized) return
-
-    let isMounted = true
-    
-    const initAuth = async () => {
+    // Récupérer la session au chargement
+    const getSession = async () => {
       try {
-        // Récupérer la session initiale
-        const { data: { session }, error } = await supabase.auth.getSession()
+        const { data: { session } } = await supabase.auth.getSession()
         
-        if (error) {
-          console.error('Error getting session:', error)
-        }
-        
-        if (isMounted) {
-          if (session?.user) {
-            setUser(session.user)
-            await fetchProfile(session.user.id)
-          } else {
-            setUser(null)
-            setProfile(null)
-          }
-          setLoading(false)
-          setInitialized(true)
+        if (session?.user) {
+          setUser(session.user)
+          await fetchProfile(session.user.id)
         }
       } catch (error) {
-        console.error('Error initializing auth:', error)
-        if (isMounted) {
-          setLoading(false)
-          setInitialized(true)
-        }
+        console.error('Error getting session:', error)
+      } finally {
+        setLoading(false)
       }
     }
 
-    // Écouter les changements d'authentification
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
-      console.log('Auth state changed:', event)
-      
-      if (isMounted) {
+    getSession()
+
+    // Écouter les changements d'auth
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('Auth event:', event)
+        
         if (session?.user) {
           setUser(session.user)
           await fetchProfile(session.user.id)
@@ -157,16 +101,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setProfile(null)
         }
         setLoading(false)
+        router.refresh()
       }
-    })
-
-    initAuth()
+    )
 
     return () => {
-      isMounted = false
       subscription.unsubscribe()
     }
-  }, [supabase, fetchProfile, initialized])
+  }, [])
 
   return (
     <AuthContext.Provider value={{ user, profile, loading, signOut, refreshProfile }}>
@@ -177,8 +119,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export const useAuth = () => {
   const context = useContext(AuthContext)
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider')
+  if (!context) {
+    throw new Error('useAuth must be used within AuthProvider')
   }
   return context
 }
