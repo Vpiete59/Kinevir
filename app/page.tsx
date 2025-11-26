@@ -1,6 +1,8 @@
 import { HeroSection } from '@/components/home/hero-section';
 import { FeatureCards } from '@/components/home/feature-cards';
 import { TrustSection } from '@/components/home/trust-section';
+import { AuthCallback } from '@/components/auth/auth-callback';
+import { Suspense } from 'react';
 
 export const metadata = {
   title: 'Kinevir - Votre santé, accompagnée en ligne',
@@ -10,6 +12,9 @@ export const metadata = {
 export default function Home() {
   return (
     <main className="min-h-screen">
+      <Suspense fallback={null}>
+        <AuthCallback />
+      </Suspense>
       <HeroSection />
       <FeatureCards />
       <TrustSection />
