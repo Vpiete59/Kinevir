@@ -1,163 +1,312 @@
 'use client';
 
-import { useState } from 'react';
-import { Card } from '@/components/ui/card';
+import { useState, useEffect } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Info, RotateCcw, ArrowRight } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import Link from 'next/link';
 
-interface BodyRegion {
+interface Joint {
   id: string;
   name: string;
-  display_name: string;
-  description: string | null;
+  slug: string;
+  position_x: number;
+  position_y: number;
+  radius: number;
+  is_active: boolean;
 }
 
-interface InteractiveSkeletonProps {
-  regions: BodyRegion[];
-  onRegionClick: (region: BodyRegion) => void;
-  selectedRegion?: string | null;
+interface Pathology {
+  id: string;
+  title: string;
+  slug: string;
+  description: string;
+  affected_areas: string[];
 }
 
-const bodyParts = [
-  { name: 'shoulder', displayName: 'Épaule', x: 120, y: 140, side: 'left' },
-  { name: 'shoulder', displayName: 'Épaule', x: 280, y: 140, side: 'right' },
-  { name: 'elbow', displayName: 'Coude', x: 80, y: 240, side: 'left' },
-  { name: 'elbow', displayName: 'Coude', x: 320, y: 240, side: 'right' },
-  { name: 'wrist', displayName: 'Poignet', x: 60, y: 320, side: 'left' },
-  { name: 'wrist', displayName: 'Poignet', x: 340, y: 320, side: 'right' },
-  { name: 'spine_cervical', displayName: 'Cervicales', x: 200, y: 120 },
-  { name: 'spine_thoracic', displayName: 'Thoraciques', x: 200, y: 200 },
-  { name: 'spine_lumbar', displayName: 'Lombaires', x: 200, y: 280 },
-  { name: 'hip', displayName: 'Hanche', x: 160, y: 340, side: 'left' },
-  { name: 'hip', displayName: 'Hanche', x: 240, y: 340, side: 'right' },
-  { name: 'knee', displayName: 'Genou', x: 160, y: 460, side: 'left' },
-  { name: 'knee', displayName: 'Genou', x: 240, y: 460, side: 'right' },
-  { name: 'ankle', displayName: 'Cheville', x: 160, y: 580, side: 'left' },
-  { name: 'ankle', displayName: 'Cheville', x: 240, y: 580, side: 'right' },
-];
+interface JointWithPathologies extends Joint {
+  pathologies: Pathology[];
+}
 
-export function InteractiveSkeleton({
-  regions,
-  onRegionClick,
-  selectedRegion,
-}: InteractiveSkeletonProps) {
-  const [hoveredPart, setHoveredPart] = useState<string | null>(null);
+const NEUTRAL_COLOR = '#94a3b8';
+const HOVER_COLOR = '#64748b';
+const SELECTED_COLOR = '#475569';
 
-  const getRegionByName = (name: string) => {
-    return regions.find((r) => r.name === name);
-  };
+export function InteractiveSkeletonPatient() {
+  const [joints, setJoints] = useState<JointWithPathologies[]>([]);
+  const [selectedJoint, setSelectedJoint] = useState<JointWithPathologies | null>(null);
+  const [hoveredJoint, setHoveredJoint] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const isRegionActive = (name: string) => {
-    const region = getRegionByName(name);
-    return region && selectedRegion === region.id;
-  };
+  useEffect(() => {
+    loadJoints();
+  }, []);
 
-  const handlePartClick = (name: string) => {
-    const region = getRegionByName(name);
-    if (region) {
-      onRegionClick(region);
+  const loadJoints = async () => {
+    try {
+      const { data: jointsData, error: jointsError } = await supabase
+        .from('joints')
+        .select('*')
+        .eq('is_active', true)
+        .order('name');
+
+      if (jointsError) throw jointsError;
+
+      const jointsWithPathologies = await Promise.all(
+        (jointsData || []).map(async (joint: Joint) => {
+          const { data: pathologiesData } = await supabase
+            .from('joint_pathologies')
+            .select(`
+              pathology_id,
+              display_order,
+              pathologies (
+                id,
+                title,
+                slug,
+                description,
+                affected_areas
+              )
+            `)
+            .eq('joint_id', joint.id)
+            .order('display_order');
+
+          const pathologies = (pathologiesData || [])
+            .map((jp: any) => jp.pathologies)
+            .filter(Boolean);
+
+          return {
+            ...joint,
+            pathologies,
+          };
+        })
+      );
+
+      setJoints(jointsWithPathologies);
+    } catch (error) {
+      console.error('Error loading joints:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
+  const handleJointClick = (joint: JointWithPathologies) => {
+    setSelectedJoint(joint);
+  };
+
+  const handleReset = () => {
+    setSelectedJoint(null);
+    setHoveredJoint(null);
+  };
+
+  if (loading) {
+    return (
+      <Card className="border-2 border-kinevir-light-blue/30 shadow-xl">
+        <CardContent className="p-6 md:p-8">
+          <div className="text-center py-12">
+            <p className="text-kinevir-dark-blue/70">Chargement du squelette interactif...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
-    <Card className="p-8 bg-gradient-to-br from-kinevir-light-gray/10 to-white">
-      <div className="flex flex-col items-center">
-        <h3 className="text-2xl font-semibold text-kinevir-medium-blue mb-2">
-          Anatomie interactive
-        </h3>
-        <p className="text-kinevir-dark-blue/70 mb-6 text-center">
-          Cliquez sur une partie du corps pour découvrir les pathologies associées
-        </p>
+    <Card className="border-2 border-kinevir-light-blue/30 shadow-xl bg-gradient-to-br from-white to-kinevir-light-gray/30 overflow-hidden">
+      <CardContent className="p-4 md:p-6 lg:p-8">
+        <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+          <div className="flex-1">
+            <div className="flex items-center justify-between mb-4 md:mb-6">
+              <div>
+                <h3 className="text-xl md:text-2xl font-bold text-kinevir-dark-blue mb-2 flex items-center gap-2">
+                  <span className="w-1 h-6 md:h-8 bg-gradient-to-b from-kinevir-medium-blue to-kinevir-light-blue rounded-full"></span>
+                  Anatomie interactive
+                </h3>
+                <p className="text-xs md:text-sm text-kinevir-dark-blue/70">
+                  Cliquez sur une articulation pour voir les pathologies associées
+                </p>
+              </div>
+              {selectedJoint && (
+                <Button
+                  onClick={handleReset}
+                  variant="outline"
+                  size="sm"
+                  className="border-kinevir-medium-blue text-kinevir-medium-blue hover:bg-kinevir-medium-blue hover:text-white transition-all"
+                >
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  <span className="hidden sm:inline">Réinitialiser</span>
+                </Button>
+              )}
+            </div>
 
-        <div className="relative w-full max-w-md mx-auto">
-          <svg
-            viewBox="0 0 400 650"
-            className="w-full h-auto"
-            style={{ maxHeight: '650px' }}
-          >
-            <circle cx="200" cy="80" r="35" fill="#457484" opacity="0.2" />
-
-            <line x1="200" y1="115" x2="200" y2="300" stroke="#457484" strokeWidth="3" />
-
-            <line x1="200" y1="140" x2="120" y2="180" stroke="#457484" strokeWidth="3" />
-            <line x1="120" y1="180" x2="80" y2="260" stroke="#457484" strokeWidth="3" />
-            <line x1="80" y1="260" x2="60" y2="320" stroke="#457484" strokeWidth="3" />
-
-            <line x1="200" y1="140" x2="280" y2="180" stroke="#457484" strokeWidth="3" />
-            <line x1="280" y1="180" x2="320" y2="260" stroke="#457484" strokeWidth="3" />
-            <line x1="320" y1="260" x2="340" y2="320" stroke="#457484" strokeWidth="3" />
-
-            <line x1="200" y1="300" x2="160" y2="380" stroke="#457484" strokeWidth="3" />
-            <line x1="160" y1="380" x2="160" y2="500" stroke="#457484" strokeWidth="3" />
-            <line x1="160" y1="500" x2="160" y2="580" stroke="#457484" strokeWidth="3" />
-
-            <line x1="200" y1="300" x2="240" y2="380" stroke="#457484" strokeWidth="3" />
-            <line x1="240" y1="380" x2="240" y2="500" stroke="#457484" strokeWidth="3" />
-            <line x1="240" y1="500" x2="240" y2="580" stroke="#457484" strokeWidth="3" />
-
-            {bodyParts.map((part, index) => {
-              const region = getRegionByName(part.name);
-              const isActive = isRegionActive(part.name);
-              const isHovered = hoveredPart === `${part.name}-${part.side || 'center'}`;
-              const hasRegion = !!region;
-
-              return (
-                <g key={`${part.name}-${part.side || 'center'}-${index}`}>
-                  <circle
-                    cx={part.x}
-                    cy={part.y}
-                    r="20"
-                    fill={
-                      isActive
-                        ? '#c44c24'
-                        : isHovered
-                        ? '#f39d61'
-                        : hasRegion
-                        ? '#457484'
-                        : '#cccccc'
-                    }
-                    opacity={isActive ? 0.9 : isHovered ? 0.8 : 0.6}
-                    className={hasRegion ? 'cursor-pointer transition-all' : 'cursor-default'}
-                    onClick={() => hasRegion && handlePartClick(part.name)}
-                    onMouseEnter={() =>
-                      hasRegion && setHoveredPart(`${part.name}-${part.side || 'center'}`)
-                    }
-                    onMouseLeave={() => setHoveredPart(null)}
+            <div className="relative">
+              <div className="bg-white rounded-2xl p-4 md:p-6 border-2 border-slate-200 shadow-inner overflow-hidden">
+                <div className="relative w-full mx-auto max-w-sm md:max-w-md lg:max-w-lg">
+                  <img
+                    src="/skeleton.jpeg"
+                    alt="Squelette anatomique"
+                    className="w-full h-auto"
                   />
-                  {(isHovered || isActive) && (
-                    <text
-                      x={part.x}
-                      y={part.y - 30}
-                      textAnchor="middle"
-                      fill="#457484"
-                      fontSize="14"
-                      fontWeight="600"
-                    >
-                      {part.displayName}
-                    </text>
-                  )}
-                </g>
-              );
-            })}
-          </svg>
-        </div>
+                  <svg
+                    viewBox="0 0 100 100"
+                    className="absolute inset-0 w-full h-full"
+                    preserveAspectRatio="none"
+                  >
+                    {joints.map((joint) => {
+                      const isHovered = hoveredJoint === joint.id;
+                      const isSelected = selectedJoint?.id === joint.id;
+                      const scale = isHovered || isSelected ? 1.4 : 1;
+                      const opacity = selectedJoint && !isSelected ? 0.3 : 1;
+                      const color = isSelected ? SELECTED_COLOR : isHovered ? HOVER_COLOR : NEUTRAL_COLOR;
 
-        <div className="mt-6 flex flex-wrap gap-2 justify-center">
-          {regions.map((region) => (
-            <Badge
-              key={region.id}
-              variant={selectedRegion === region.id ? 'default' : 'outline'}
-              className={`cursor-pointer transition-all ${
-                selectedRegion === region.id
-                  ? 'bg-kinevir-orange hover:bg-kinevir-orange/90'
-                  : 'border-kinevir-medium-blue text-kinevir-medium-blue hover:bg-kinevir-medium-blue/10'
-              }`}
-              onClick={() => onRegionClick(region)}
-            >
-              {region.display_name}
-            </Badge>
-          ))}
+                      return (
+                        <g
+                          key={joint.id}
+                          onMouseEnter={() => setHoveredJoint(joint.id)}
+                          onMouseLeave={() => setHoveredJoint(null)}
+                          onClick={() => handleJointClick(joint)}
+                          style={{ cursor: 'pointer', transition: 'all 0.3s ease' }}
+                          opacity={opacity}
+                        >
+                          {(isHovered || isSelected) && (
+                            <circle
+                              cx={joint.position_x}
+                              cy={joint.position_y}
+                              r={joint.radius * scale + 2}
+                              fill={color}
+                              opacity="0.2"
+                              style={{ filter: 'blur(8px)' }}
+                            />
+                          )}
+                          <circle
+                            cx={joint.position_x}
+                            cy={joint.position_y}
+                            r={joint.radius * scale}
+                            fill={color}
+                            stroke="white"
+                            strokeWidth="0.5"
+                            opacity={isHovered || isSelected ? 1 : 0.85}
+                            style={{
+                              transition: 'all 0.3s ease',
+                              filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.25))',
+                            }}
+                          />
+                          {isSelected && (
+                            <circle
+                              cx={joint.position_x}
+                              cy={joint.position_y}
+                              r={joint.radius * scale + 2}
+                              fill="none"
+                              stroke={SELECTED_COLOR}
+                              strokeWidth="0.4"
+                              opacity="0.6"
+                            >
+                              <animate
+                                attributeName="r"
+                                from={joint.radius * scale + 1}
+                                to={joint.radius * scale + 4}
+                                dur="1.5s"
+                                repeatCount="indefinite"
+                              />
+                              <animate
+                                attributeName="opacity"
+                                from="0.6"
+                                to="0"
+                                dur="1.5s"
+                                repeatCount="indefinite"
+                              />
+                            </circle>
+                          )}
+                        </g>
+                      );
+                    })}
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="lg:w-96">
+            <Card className="sticky top-24 border-2 border-kinevir-medium-blue/20 bg-gradient-to-br from-white via-white to-kinevir-light-blue/10 shadow-lg">
+              <CardContent className="p-4 md:p-6">
+                {selectedJoint ? (
+                  <div className="space-y-4 md:space-y-5">
+                    <div className="flex items-start gap-3 md:gap-4">
+                      <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-gradient-to-br from-slate-400 to-slate-500 flex items-center justify-center flex-shrink-0 shadow-lg relative overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent"></div>
+                        <Info className="w-6 h-6 md:w-7 md:h-7 text-white relative z-10" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="text-lg md:text-xl font-bold text-kinevir-dark-blue mb-2">
+                          {selectedJoint.name}
+                        </h4>
+                        <Badge className="bg-slate-100 text-slate-700 border border-slate-300 text-xs">
+                          {selectedJoint.pathologies.length} pathologie{selectedJoint.pathologies.length > 1 ? 's' : ''} courante{selectedJoint.pathologies.length > 1 ? 's' : ''}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="h-px bg-gradient-to-r from-transparent via-kinevir-medium-blue/30 to-transparent" />
+                    {selectedJoint.pathologies.length > 0 ? (
+                      <div>
+                        <h5 className="text-xs font-semibold text-kinevir-dark-blue/60 mb-3 uppercase tracking-wider">
+                          Pathologies fréquentes
+                        </h5>
+                        <div className="space-y-2 md:space-y-3">
+                          {selectedJoint.pathologies.map((pathology) => (
+                            <div
+                              key={pathology.id}
+                              className="group p-3 md:p-4 bg-white rounded-xl border border-kinevir-light-gray hover:border-kinevir-medium-blue/50 hover:shadow-md transition-all duration-200"
+                            >
+                              <div className="mb-2">
+                                <h6 className="text-sm md:text-base font-semibold text-kinevir-dark-blue group-hover:text-kinevir-medium-blue transition-colors">
+                                  {pathology.title}
+                                </h6>
+                              </div>
+                              <p className="text-xs md:text-sm text-kinevir-dark-blue/70 mb-3 line-clamp-2">
+                                {pathology.description}
+                              </p>
+                              <Link href={`/pathologies/${pathology.slug}`}>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="w-full justify-between text-kinevir-medium-blue hover:bg-kinevir-light-blue/10 text-xs md:text-sm"
+                                >
+                                  En savoir plus
+                                  <ArrowRight className="w-4 h-4" />
+                                </Button>
+                              </Link>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8">
+                        <p className="text-sm text-kinevir-dark-blue/70">
+                          Aucune pathologie associée à cette articulation pour le moment.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 md:py-12">
+                    <div className="w-16 h-16 md:w-20 md:h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-kinevir-light-blue to-kinevir-medium-blue flex items-center justify-center shadow-lg relative overflow-hidden">
+                      <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent"></div>
+                      <Info className="w-8 h-8 md:w-10 md:h-10 text-white relative z-10" />
+                    </div>
+                    <h4 className="text-base md:text-lg font-semibold text-kinevir-dark-blue mb-2">
+                      Sélectionnez une articulation
+                    </h4>
+                    <p className="text-xs md:text-sm text-kinevir-dark-blue/70 leading-relaxed">
+                      Cliquez sur une zone du corps pour découvrir les pathologies courantes et les programmes de rééducation disponibles.
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </div>
+      </CardContent>
     </Card>
   );
 }
