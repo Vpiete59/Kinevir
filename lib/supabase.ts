@@ -1,20 +1,21 @@
-import { createBrowserClient } from '@supabase/ssr'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 // Singleton pattern pour éviter les instances multiples
-let supabaseInstance: ReturnType<typeof createBrowserClient> | null = null
+let supabaseInstance: ReturnType<typeof createClientComponentClient> | null = null
 
 export function getSupabaseClient() {
   if (typeof window === 'undefined') {
-    // Server-side: créer une nouvelle instance à chaque fois
-    return createBrowserClient(supabaseUrl, supabaseAnonKey)
+    // Server-side: retourner null ou un client basique
+    // Les composants serveur utiliseront createServerComponentClient
+    return createClientComponentClient()
   }
   
   // Client-side: réutiliser la même instance
   if (!supabaseInstance) {
-    supabaseInstance = createBrowserClient(supabaseUrl, supabaseAnonKey)
+    supabaseInstance = createClientComponentClient()
   }
   return supabaseInstance
 }
@@ -22,7 +23,7 @@ export function getSupabaseClient() {
 // Export pour compatibilité avec l'ancien code
 export const supabase = typeof window !== 'undefined' 
   ? getSupabaseClient() 
-  : createBrowserClient(supabaseUrl, supabaseAnonKey)
+  : createClientComponentClient()
 
 export type Profile = {
   id: string
