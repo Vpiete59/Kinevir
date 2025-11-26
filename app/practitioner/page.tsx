@@ -4,44 +4,70 @@ import { useAuth } from '@/components/auth/auth-provider';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, Clock, FileText, Users, Target } from 'lucide-react';
+import { Calendar, Clock, FileText, Users, Stethoscope } from 'lucide-react';
 import { WeeklyCalendar } from '@/components/practitioner/weekly-calendar';
 import { AvailabilityManager } from '@/components/practitioner/availability-manager';
 import { ActsManager } from '@/components/practitioner/acts-manager';
-import { PractitionersManager } from '@/components/practitioner/practitioners-manager';
-import { JointsManager } from '@/components/practitioner/joints-manager';
+import { MyPatientsManager } from '@/components/practitioner/my-patients-manager';
 
 export default function PractitionerDashboard() {
-  const { user } = useAuth();
+  const { user, profile, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!user) {
-      router.push('/login');
+    if (!loading) {
+      if (!user) {
+        router.push('/login');
+      } else if (profile && profile.role !== 'practitioner' && profile.role !== 'admin') {
+        router.push('/');
+      }
     }
-  }, [user, router]);
+  }, [user, profile, loading, router]);
 
-  if (!user) {
-    return null;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-cyan-200 border-t-cyan-500 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Chargement...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user || (profile?.role !== 'practitioner' && profile?.role !== 'admin')) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Stethoscope className="w-16 h-16 text-[#4A9BA5] mx-auto mb-4" />
+          <p className="text-gray-600">Accès réservé aux praticiens</p>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-kinevir-light-gray/10 to-kinevir-medium-blue/5 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-white via-[#4A9BA5]/5 to-[#4A9BA5]/10 py-8">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-kinevir-medium-blue mb-2">
-            Espace Praticien
-          </h1>
-          <p className="text-kinevir-dark-blue/70">
-            Gérez vos rendez-vous, disponibilités et consultations
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-[#4A9BA5]/10 rounded-lg">
+              <Stethoscope className="w-6 h-6 text-[#4A9BA5]" />
+            </div>
+            <h1 className="text-3xl font-bold text-[#4A9BA5]">
+              Espace Praticien
+            </h1>
+          </div>
+          <p className="text-gray-600 ml-14">
+            Gérez vos rendez-vous, disponibilités et patients
           </p>
         </div>
 
         <Tabs defaultValue="planning" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 max-w-4xl">
+          <TabsList className="grid w-full grid-cols-4 max-w-2xl">
             <TabsTrigger value="planning" className="flex items-center gap-2">
               <Calendar className="w-4 h-4" />
-              <span className="hidden sm:inline">Mon planning</span>
+              <span className="hidden sm:inline">Planning</span>
             </TabsTrigger>
             <TabsTrigger value="availability" className="flex items-center gap-2">
               <Clock className="w-4 h-4" />
@@ -51,13 +77,9 @@ export default function PractitionerDashboard() {
               <FileText className="w-4 h-4" />
               <span className="hidden sm:inline">Mes actes</span>
             </TabsTrigger>
-            <TabsTrigger value="practitioners" className="flex items-center gap-2">
+            <TabsTrigger value="patients" className="flex items-center gap-2">
               <Users className="w-4 h-4" />
-              <span className="hidden sm:inline">Praticiens</span>
-            </TabsTrigger>
-            <TabsTrigger value="joints" className="flex items-center gap-2">
-              <Target className="w-4 h-4" />
-              <span className="hidden sm:inline">Articulations</span>
+              <span className="hidden sm:inline">Mes patients</span>
             </TabsTrigger>
           </TabsList>
 
@@ -73,12 +95,8 @@ export default function PractitionerDashboard() {
             <ActsManager />
           </TabsContent>
 
-          <TabsContent value="practitioners">
-            <PractitionersManager />
-          </TabsContent>
-
-          <TabsContent value="joints">
-            <JointsManager />
+          <TabsContent value="patients">
+            <MyPatientsManager />
           </TabsContent>
         </Tabs>
       </div>
