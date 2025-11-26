@@ -55,7 +55,7 @@ export function InteractiveSkeletonPatient() {
       if (jointsError) throw jointsError;
 
       const jointsWithPathologies = await Promise.all(
-        (jointsData || []).map(async (joint) => {
+        (jointsData || []).map(async (joint: Joint) => {
           const { data: pathologiesData } = await supabase
             .from('joint_pathologies')
             .select(`
