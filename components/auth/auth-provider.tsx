@@ -1,13 +1,24 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { User } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
+import { getSupabaseClient } from '@/lib/supabase'
+
+type Profile = {
+  id: string
+  email: string
+  first_name: string | null
+  last_name: string | null
+  phone: string | null
+  role: 'patient' | 'practitioner' | 'admin'
+  created_at: string
+  updated_at: string
+}
 
 type AuthContextType = {
   user: User | null
-  profile: any | null
+  profile: Profile | null
   loading: boolean
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
@@ -23,85 +34,139 @@ const AuthContext = createContext<AuthContextType>({
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [profile, setProfile] = useState<any | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
-  const supabase = createClientComponentClient()
+  const [initialized, setInitialized] = useState(false)
   const router = useRouter()
 
-  const fetchProfile = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single()
+  // Utiliser le client Supabase singleton
+  const supabase = getSupabaseClient()
 
-    if (!error && data) {
-      setProfile(data)
+  const fetchProfile = useCallback(async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single()
+
+      if (!error && data) {
+        setProfile(data)
+        return data
+      } else {
+        console.error('Error fetching profile:', error)
+        return null
+      }
+    } catch (error) {
+      console.error('Error fetching profile:', error)
+      return null
     }
-  }
+  }, [supabase])
 
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     if (user) {
       await fetchProfile(user.id)
     }
-  }
+  }, [user, fetchProfile])
+
+  const signOut = useCallback(async () => {
+    try {
+      setLoading(true)
+      
+      // Appeler signOut sur Supabase
+      const { error } = await supabase.auth.signOut()
+      
+      if (error) {
+        console.error('Error signing out:', error)
+      }
+      
+      // Nettoyer l'état local
+      setUser(null)
+      setProfile(null)
+      
+      // Nettoyer le localStorage/sessionStorage pour Supabase
+      if (typeof window !== 'undefined') {
+        // Supprimer les clés Supabase du localStorage
+        const keysToRemove: string[] = []
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i)
+          if (key && (key.startsWith('sb-') || key.includes('supabase'))) {
+            keysToRemove.push(key)
+          }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key))
+      }
+      
+      // Rediriger vers l'accueil
+      router.push('/')
+      router.refresh()
+      
+    } catch (error) {
+      console.error('Error during sign out:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [supabase, router])
 
   useEffect(() => {
-    // Timeout de sécurité pour éviter le chargement infini
-    const timeout = setTimeout(() => {
-      if (loading) {
-        console.log('Auth timeout - forcing loading to false')
-        setLoading(false)
-      }
-    }, 3000)
+    if (initialized) return
 
-    // Récupérer la session initiale
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        fetchProfile(session.user.id).finally(() => {
+    let isMounted = true
+    
+    const initAuth = async () => {
+      try {
+        // Récupérer la session initiale
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (error) {
+          console.error('Error getting session:', error)
+        }
+        
+        if (isMounted) {
+          if (session?.user) {
+            setUser(session.user)
+            await fetchProfile(session.user.id)
+          } else {
+            setUser(null)
+            setProfile(null)
+          }
           setLoading(false)
-        })
-      } else {
-        setLoading(false)
+          setInitialized(true)
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error)
+        if (isMounted) {
+          setLoading(false)
+          setInitialized(true)
+        }
       }
-    }).catch((error) => {
-      console.error('Error getting session:', error)
-      setLoading(false)
-    })
+    }
 
     // Écouter les changements d'authentification
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth state changed:', event)
-      setUser(session?.user ?? null)
       
-      if (session?.user) {
-        await fetchProfile(session.user.id)
-      } else {
-        setProfile(null)
+      if (isMounted) {
+        if (session?.user) {
+          setUser(session.user)
+          await fetchProfile(session.user.id)
+        } else {
+          setUser(null)
+          setProfile(null)
+        }
+        setLoading(false)
       }
-      
-      setLoading(false)
-      
-      // Rafraîchir la page pour mettre à jour les Server Components
-      router.refresh()
     })
 
+    initAuth()
+
     return () => {
-      clearTimeout(timeout)
+      isMounted = false
       subscription.unsubscribe()
     }
-  }, [supabase, router])
-
-  const signOut = async () => {
-    await supabase.auth.signOut()
-    setUser(null)
-    setProfile(null)
-    router.push('/')
-    router.refresh()
-  }
+  }, [supabase, fetchProfile, initialized])
 
   return (
     <AuthContext.Provider value={{ user, profile, loading, signOut, refreshProfile }}>
