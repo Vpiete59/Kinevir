@@ -47,12 +47,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
+    // Timeout de sécurité pour éviter le chargement infini
+    const timeout = setTimeout(() => {
+      if (loading) {
+        console.log('Auth timeout - forcing loading to false')
+        setLoading(false)
+      }
+    }, 3000)
+
     // Récupérer la session initiale
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
       if (session?.user) {
-        fetchProfile(session.user.id)
+        fetchProfile(session.user.id).finally(() => {
+          setLoading(false)
+        })
+      } else {
+        setLoading(false)
       }
+    }).catch((error) => {
+      console.error('Error getting session:', error)
       setLoading(false)
     })
 
@@ -75,7 +89,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       router.refresh()
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      clearTimeout(timeout)
+      subscription.unsubscribe()
+    }
   }, [supabase, router])
 
   const signOut = async () => {

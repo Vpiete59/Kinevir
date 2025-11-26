@@ -39,7 +39,7 @@ export default function Navbar() {
                 priority
               />
             </div>
-            <div className="relative h-9 w-28 sm:h-10 sm:w-36 flex-shrink-0">
+            <div className="relative h-12 w-40 sm:h-14 sm:w-48 flex-shrink-0">
               <Image
                 src="/logo-titre.webp"
                 alt="Kinevir"
