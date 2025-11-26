@@ -14,9 +14,8 @@ export default function Navbar() {
   const pathname = usePathname()
 
   const navLinks = [
-    { href: '/pathologies', label: 'Pathologies' },
-    { href: '/appointment', label: 'Rendez-vous' },
-    { href: '/exercises', label: 'Exercices' },
+    { href: '/pathologies', label: 'J\'ai mal où ?' },
+    { href: '/appointment', label: 'Consulter' },
     { href: '/wellness', label: 'Bien-être' },
   ]
 
@@ -164,6 +163,15 @@ export default function Navbar() {
                           >
                             <span className="text-base">📅</span>
                             <span>Mes rendez-vous</span>
+                          </Link>
+
+                          <Link
+                            href="/teleconsultation"
+                            className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                            onClick={() => setShowMenu(false)}
+                          >
+                            <span className="text-base">🎥</span>
+                            <span>Téléconsultation</span>
                           </Link>
                         </div>
 
