@@ -29,7 +29,7 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-3 group">
+          <Link href="/" className="flex items-center gap-2 group">
             <div className="relative w-10 h-10 flex-shrink-0">
               <Image
                 src="/logo-k.webp"
@@ -39,9 +39,15 @@ export default function Navbar() {
                 priority
               />
             </div>
-            <span className="text-xl font-semibold text-[#4A9BA5] group-hover:text-[#3d8a93] transition-colors">
-              Kinevir
-            </span>
+            <div className="relative h-8 w-24 flex-shrink-0">
+              <Image
+                src="/logo-titre.webp"
+                alt="Kinevir"
+                fill
+                className="object-contain"
+                priority
+              />
+            </div>
           </Link>
 
           {/* Navigation principale - Desktop */}
