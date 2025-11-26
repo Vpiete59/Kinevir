@@ -144,7 +144,7 @@ export function InteractiveSkeletonPatient() {
               <div className="bg-white rounded-2xl p-4 md:p-6 border-2 border-slate-200 shadow-inner overflow-hidden">
                 <div className="relative w-full mx-auto max-w-sm md:max-w-md lg:max-w-lg">
                   <img
-                    src="/wmremove-transformed copy copy.jpeg"
+                    src="/skeleton.jpeg"
                     alt="Squelette anatomique"
                     className="w-full h-auto"
                   />
