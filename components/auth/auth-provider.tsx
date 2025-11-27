@@ -41,6 +41,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [, forceUpdate] = useState(0)
   const router = useRouter()
 
   const fetchProfile = async (userId: string): Promise<Profile | null> => {
@@ -82,21 +83,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    // Écouter les changements d'auth - c'est la source de vérité
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth event:', event, session?.user?.email)
         
-        if (session?.user) {
+        if (event === 'INITIAL_SESSION') {
+          // Première vérification - attendre un peu pour la session OAuth
+          if (!session) {
+            // Pas de session immédiate, attendre 500ms pour OAuth
+            setTimeout(async () => {
+              const { data } = await supabase.auth.getSession()
+              if (data.session?.user) {
+                setUser(data.session.user)
+                const profileData = await fetchProfile(data.session.user.id)
+                setProfile(profileData)
+                forceUpdate(n => n + 1)
+              }
+              setLoading(false)
+            }, 500)
+          } else {
+            setUser(session.user)
+            const profileData = await fetchProfile(session.user.id)
+            setProfile(profileData)
+            setLoading(false)
+          }
+        } else if (event === 'SIGNED_IN' && session?.user) {
           setUser(session.user)
           const profileData = await fetchProfile(session.user.id)
           setProfile(profileData)
-        } else {
+          setLoading(false)
+          forceUpdate(n => n + 1)
+        } else if (event === 'SIGNED_OUT') {
           setUser(null)
           setProfile(null)
+          setLoading(false)
         }
-        
-        setLoading(false)
       }
     )
 
