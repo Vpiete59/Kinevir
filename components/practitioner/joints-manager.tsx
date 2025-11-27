@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Save, Trash2, Move, Eye, EyeOff } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 import { toast } from 'sonner';
 
 interface Joint {
@@ -35,6 +35,7 @@ export function JointsManager() {
 
   const loadJoints = async () => {
     try {
+      const supabase = getSupabaseClient()
       const { data, error } = await supabase
         .from('joints')
         .select('*')
@@ -68,6 +69,7 @@ export function JointsManager() {
       .replace(/(^-|-$)/g, '');
 
     try {
+      const supabase = getSupabaseClient()
       const { data, error } = await supabase
         .from('joints')
         .insert({
@@ -115,6 +117,7 @@ export function JointsManager() {
 
   const saveJointPosition = async (joint: Joint) => {
     try {
+      const supabase = getSupabaseClient()
       const { error } = await supabase
         .from('joints')
         .update({
@@ -133,6 +136,7 @@ export function JointsManager() {
 
   const toggleJointActive = async (joint: Joint) => {
     try {
+      const supabase = getSupabaseClient()
       const { error } = await supabase
         .from('joints')
         .update({ is_active: !joint.is_active })
@@ -152,6 +156,7 @@ export function JointsManager() {
     if (!confirm(`Êtes-vous sûr de vouloir supprimer "${joint.name}" ?`)) return;
 
     try {
+      const supabase = getSupabaseClient()
       const { error } = await supabase.from('joints').delete().eq('id', joint.id);
 
       if (error) throw error;

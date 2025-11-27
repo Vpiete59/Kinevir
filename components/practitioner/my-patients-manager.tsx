@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/components/auth/auth-provider';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -78,6 +78,7 @@ export function MyPatientsManager() {
 
   const loadPatients = async () => {
     try {
+      const supabase = getSupabaseClient()
       // Récupérer les patients qui ont pris RDV avec ce praticien
       const { data: appointmentsData, error: appointmentsError } = await supabase
         .from('appointments')
@@ -180,6 +181,7 @@ export function MyPatientsManager() {
 
     // Charger les RDV de ce patient
     try {
+      const supabase = getSupabaseClient()
       const { data, error } = await supabase
         .from('appointments')
         .select(`
@@ -213,6 +215,7 @@ export function MyPatientsManager() {
 
     setSavingNotes(true);
     try {
+      const supabase = getSupabaseClient()
       // Upsert les notes
       const { error } = await supabase
         .from('practitioner_patient_notes')

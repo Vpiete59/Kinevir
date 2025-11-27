@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Info, RotateCcw, ArrowRight } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { getSupabaseClient } from '@/lib/supabase';
 import Link from 'next/link';
 
 interface Joint {
@@ -46,6 +46,7 @@ export function InteractiveSkeletonPatient() {
 
   const loadJoints = async () => {
     try {
+      const supabase = getSupabaseClient()
       const { data: jointsData, error: jointsError } = await supabase
         .from('joints')
         .select('*')
