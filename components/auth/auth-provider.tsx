@@ -39,33 +39,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const supabase = createClientComponentClient()
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = async (userId: string): Promise<Profile | null> => {
     console.log('Fetching profile for:', userId)
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single()
+    
+    // Timeout de 5 secondes
+    const timeoutPromise = new Promise<null>((resolve) => {
+      setTimeout(() => {
+        console.log('Profile fetch timeout')
+        resolve(null)
+      }, 5000)
+    })
 
-      console.log('Profile result:', { data, error })
+    const fetchPromise = (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single()
 
-      if (error) {
-        console.error('Error fetching profile:', error)
-        // Si le profil n'existe pas, on continue quand même
-        setProfile(null)
-      } else if (data) {
-        setProfile(data)
+        console.log('Profile result:', { data, error })
+
+        if (error) {
+          console.error('Error fetching profile:', error)
+          return null
+        }
+        return data as Profile
+      } catch (error) {
+        console.error('Exception fetching profile:', error)
+        return null
       }
-    } catch (error) {
-      console.error('Exception fetching profile:', error)
-      setProfile(null)
-    }
+    })()
+
+    // Race entre le fetch et le timeout
+    const result = await Promise.race([fetchPromise, timeoutPromise])
+    return result
   }
 
   const refreshProfile = async () => {
     if (user) {
-      await fetchProfile(user.id)
+      const profileData = await fetchProfile(user.id)
+      setProfile(profileData)
     }
   }
 
@@ -78,43 +92,61 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    const getSession = async () => {
+    let isMounted = true
+
+    const init = async () => {
       console.log('Getting session...')
+      
       try {
-        const { data: { session }, error } = await supabase.auth.getSession()
-        console.log('Session result:', { session: session?.user?.email, error })
+        const { data: { session } } = await supabase.auth.getSession()
+        console.log('Session:', session?.user?.email || 'none')
         
-        if (session?.user) {
+        if (isMounted && session?.user) {
           setUser(session.user)
-          await fetchProfile(session.user.id)
+          const profileData = await fetchProfile(session.user.id)
+          if (isMounted) {
+            setProfile(profileData)
+          }
         }
       } catch (error) {
         console.error('Error getting session:', error)
       } finally {
-        console.log('Setting loading to false')
-        setLoading(false)
+        if (isMounted) {
+          console.log('Setting loading to false')
+          setLoading(false)
+        }
       }
     }
 
-    getSession()
+    init()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth event:', event)
         
+        if (!isMounted) return
+
         if (session?.user) {
           setUser(session.user)
-          await fetchProfile(session.user.id)
+          const profileData = await fetchProfile(session.user.id)
+          if (isMounted) {
+            setProfile(profileData)
+          }
         } else {
           setUser(null)
           setProfile(null)
         }
-        setLoading(false)
+        
+        if (isMounted) {
+          setLoading(false)
+        }
+        
         router.refresh()
       }
     )
 
     return () => {
+      isMounted = false
       subscription.unsubscribe()
     }
   }, [])
