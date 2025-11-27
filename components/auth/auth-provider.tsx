@@ -82,30 +82,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    const init = async () => {
-      console.log('Getting session...')
-      
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        console.log('Session:', session?.user?.email || 'none')
-        
-        if (session?.user) {
-          setUser(session.user)
-          const profileData = await fetchProfile(session.user.id)
-          setProfile(profileData)
-        }
-      } catch (error) {
-        console.error('Error getting session:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    init()
-
+    // Écouter les changements d'auth - c'est la source de vérité
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth event:', event)
+        console.log('Auth event:', event, session?.user?.email)
         
         if (session?.user) {
           setUser(session.user)
@@ -117,7 +97,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         
         setLoading(false)
-        router.refresh()
       }
     )
 
