@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, useRef } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { User } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
@@ -38,42 +38,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const router = useRouter()
   const supabase = createClientComponentClient()
+  const fetchingRef = useRef(false)
+  const initializedRef = useRef(false)
 
   const fetchProfile = async (userId: string): Promise<Profile | null> => {
+    // Éviter les appels simultanés
+    if (fetchingRef.current) {
+      console.log('Fetch already in progress, skipping')
+      return profile
+    }
+    
+    fetchingRef.current = true
     console.log('Fetching profile for:', userId)
     
-    // Timeout de 5 secondes
-    const timeoutPromise = new Promise<null>((resolve) => {
-      setTimeout(() => {
-        console.log('Profile fetch timeout')
-        resolve(null)
-      }, 5000)
-    })
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single()
 
-    const fetchPromise = (async () => {
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', userId)
-          .single()
+      console.log('Profile result:', { data, error })
 
-        console.log('Profile result:', { data, error })
-
-        if (error) {
-          console.error('Error fetching profile:', error)
-          return null
-        }
-        return data as Profile
-      } catch (error) {
-        console.error('Exception fetching profile:', error)
+      if (error) {
+        console.error('Error fetching profile:', error)
         return null
       }
-    })()
-
-    // Race entre le fetch et le timeout
-    const result = await Promise.race([fetchPromise, timeoutPromise])
-    return result
+      return data as Profile
+    } catch (error) {
+      console.error('Exception fetching profile:', error)
+      return null
+    } finally {
+      fetchingRef.current = false
+    }
   }
 
   const refreshProfile = async () => {
@@ -92,7 +89,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    let isMounted = true
+    if (initializedRef.current) return
+    initializedRef.current = true
 
     const init = async () => {
       console.log('Getting session...')
@@ -101,20 +99,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { data: { session } } = await supabase.auth.getSession()
         console.log('Session:', session?.user?.email || 'none')
         
-        if (isMounted && session?.user) {
+        if (session?.user) {
           setUser(session.user)
           const profileData = await fetchProfile(session.user.id)
-          if (isMounted) {
-            setProfile(profileData)
-          }
+          setProfile(profileData)
         }
       } catch (error) {
         console.error('Error getting session:', error)
       } finally {
-        if (isMounted) {
-          console.log('Setting loading to false')
-          setLoading(false)
-        }
+        setLoading(false)
       }
     }
 
@@ -124,29 +117,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       async (event, session) => {
         console.log('Auth event:', event)
         
-        if (!isMounted) return
-
+        // Ignorer INITIAL_SESSION car on le gère déjà dans init()
+        if (event === 'INITIAL_SESSION') return
+        
         if (session?.user) {
           setUser(session.user)
           const profileData = await fetchProfile(session.user.id)
-          if (isMounted) {
-            setProfile(profileData)
-          }
+          setProfile(profileData)
         } else {
           setUser(null)
           setProfile(null)
         }
         
-        if (isMounted) {
-          setLoading(false)
-        }
-        
+        setLoading(false)
         router.refresh()
       }
     )
 
     return () => {
-      isMounted = false
       subscription.unsubscribe()
     }
   }, [])
