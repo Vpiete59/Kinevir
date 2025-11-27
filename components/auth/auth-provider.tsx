@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, useRef } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { User } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
@@ -38,17 +38,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const router = useRouter()
   const supabase = createClientComponentClient()
-  const fetchingRef = useRef(false)
-  const initializedRef = useRef(false)
 
   const fetchProfile = async (userId: string): Promise<Profile | null> => {
-    // Éviter les appels simultanés
-    if (fetchingRef.current) {
-      console.log('Fetch already in progress, skipping')
-      return profile
-    }
-    
-    fetchingRef.current = true
     console.log('Fetching profile for:', userId)
     
     try {
@@ -68,8 +59,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Exception fetching profile:', error)
       return null
-    } finally {
-      fetchingRef.current = false
     }
   }
 
@@ -89,9 +78,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    if (initializedRef.current) return
-    initializedRef.current = true
-
     const init = async () => {
       console.log('Getting session...')
       
@@ -116,9 +102,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth event:', event)
-        
-        // Ignorer INITIAL_SESSION car on le gère déjà dans init()
-        if (event === 'INITIAL_SESSION') return
         
         if (session?.user) {
           setUser(session.user)
