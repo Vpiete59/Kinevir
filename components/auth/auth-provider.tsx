@@ -1,11 +1,11 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import { createBrowserClient } from '@supabase/ssr'
 import { User } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
 
-const supabase = createClient(
+const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
@@ -75,7 +75,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
-    await supabase.auth.signOut()
+    const { error } = await supabase.auth.signOut()
+    if (error) {
+      console.error('Sign out error:', error)
+    }
     setUser(null)
     setProfile(null)
     router.push('/')
@@ -88,9 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('Auth event:', event, session?.user?.email)
         
         if (event === 'INITIAL_SESSION') {
-          // Première vérification - attendre un peu pour la session OAuth
           if (!session) {
-            // Pas de session immédiate, attendre 500ms pour OAuth
             setTimeout(async () => {
               const { data } = await supabase.auth.getSession()
               if (data.session?.user) {
@@ -117,6 +118,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(null)
           setProfile(null)
           setLoading(false)
+          forceUpdate(n => n + 1)
         }
       }
     )
