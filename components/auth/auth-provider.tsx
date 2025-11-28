@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { User } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
-import { getSupabaseClient, Profile } from '@/lib/supabase'
+import { createClient, Profile } from '@/lib/supabase'
 
 type AuthContextType = {
   user: User | null
@@ -22,58 +22,40 @@ const AuthContext = createContext<AuthContextType>({
 })
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const supabase = createClient()
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
+  const loadProfile = async (userId: string) => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single()
+    return data as Profile | null
+  }
+
   useEffect(() => {
-    const supabase = getSupabaseClient()
-    
-    // Fonction pour charger le profil
-    const loadProfile = async (userId: string) => {
-      try {
-        const { data } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', userId)
-          .single()
-        return data as Profile | null
-      } catch {
-        return null
+    supabase.auth.getSession().then(async ({ data }) => {
+      const currentUser = data.session?.user ?? null
+      setUser(currentUser)
+      if (currentUser) {
+        const profileData = await loadProfile(currentUser.id)
+        setProfile(profileData)
       }
-    }
+      setLoading(false)
+    })
 
-    // Charger la session initiale
-    const initSession = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        
-        if (session?.user) {
-          setUser(session.user)
-          const profileData = await loadProfile(session.user.id)
-          setProfile(profileData)
-        }
-      } catch (error) {
-        console.error('Init session error:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    initSession()
-
-    // Écouter les changements
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event: string, session: any) => {
-        console.log('Auth event:', event)
-        
-        if (session?.user) {
-          setUser(session.user)
-          const profileData = await loadProfile(session.user.id)
+      async (_event, session) => {
+        const currentUser = session?.user ?? null
+        setUser(currentUser)
+        if (currentUser) {
+          const profileData = await loadProfile(currentUser.id)
           setProfile(profileData)
         } else {
-          setUser(null)
           setProfile(null)
         }
         setLoading(false)
@@ -84,7 +66,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const signOut = async () => {
-    const supabase = getSupabaseClient()
     await supabase.auth.signOut()
     setUser(null)
     setProfile(null)
@@ -94,13 +75,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshProfile = async () => {
     if (user) {
-      const supabase = getSupabaseClient()
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single()
-      setProfile(data)
+      const profileData = await loadProfile(user.id)
+      setProfile(profileData)
     }
   }
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getSupabaseClient } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -69,7 +69,7 @@ export function AccountsManager() {
 
   const loadUsers = async () => {
     try {
-      const supabase = getSupabaseClient()
+      const supabase = createClient()
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -112,7 +112,7 @@ export function AccountsManager() {
     if (!userToDelete) return;
 
     try {
-      const supabase = getSupabaseClient()
+      const supabase = createClient()
       const { error } = await supabase
         .from('profiles')
         .delete()
@@ -142,7 +142,7 @@ export function AccountsManager() {
     if (!userToChangeRole || !newRole) return;
 
     try {
-      const supabase = getSupabaseClient()
+      const supabase = createClient()
       const { error } = await supabase
         .from('profiles')
         .update({ role: newRole })
