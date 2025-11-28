@@ -1,9 +1,16 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState } from 'react'
+import { createBrowserClient } from '@supabase/ssr'
 import { User } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
-import { getSupabaseClient, Profile } from '@/lib/supabase'
+import { Profile } from '@/lib/supabase'
+
+// Client unique créé une seule fois
+const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 type AuthContextType = {
   user: User | null
@@ -28,7 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
 
   const fetchProfile = async (userId: string): Promise<Profile | null> => {
-    const supabase = getSupabaseClient()
+    console.log('fetchProfile called for:', userId)
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -36,6 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('id', userId)
         .single()
 
+      console.log('fetchProfile result:', { data, error })
       if (error) {
         console.error('Error fetching profile:', error)
         return null
@@ -55,7 +63,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
-    const supabase = getSupabaseClient()
     await supabase.auth.signOut()
     setUser(null)
     setProfile(null)
@@ -64,39 +71,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    const supabase = getSupabaseClient()
-    console.log('AuthProvider mounted')
+    console.log('AuthProvider useEffect running')
     
-    // Récupérer la session initiale
-    supabase.auth.getSession().then(async ({ data: { session } }: { data: { session: any } }) => {
-      console.log('getSession result:', session?.user?.email || 'no session')
-      if (session?.user) {
-        setUser(session.user)
-        console.log('Fetching profile for:', session.user.id)
-        const profileData = await fetchProfile(session.user.id)
-        console.log('Profile fetched:', profileData)
-        setProfile(profileData)
+    const initAuth = async () => {
+      try {
+        console.log('Getting session...')
+        const { data: { session }, error } = await supabase.auth.getSession()
+        console.log('Session result:', session?.user?.email || 'no session', error)
+        
+        if (session?.user) {
+          setUser(session.user)
+          const profileData = await fetchProfile(session.user.id)
+          setProfile(profileData)
+        }
+      } catch (err) {
+        console.error('Error in initAuth:', err)
+      } finally {
+        console.log('Setting loading to false')
+        setLoading(false)
       }
-      console.log('Setting loading to false')
-      setLoading(false)
-    })
+    }
 
-    // Écouter les changements
+    initAuth()
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: string, session: any) => {
         console.log('Auth event:', event, session?.user?.email)
         
         if (session?.user) {
           setUser(session.user)
-          console.log('Fetching profile for:', session.user.id)
           const profileData = await fetchProfile(session.user.id)
-          console.log('Profile fetched:', profileData)
           setProfile(profileData)
         } else {
           setUser(null)
           setProfile(null)
         }
-        console.log('Setting loading to false after event')
         setLoading(false)
       }
     )
