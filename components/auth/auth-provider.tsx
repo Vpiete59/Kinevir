@@ -65,30 +65,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const supabase = getSupabaseClient()
+    console.log('AuthProvider mounted')
     
     // Récupérer la session initiale
     supabase.auth.getSession().then(async ({ data: { session } }: { data: { session: any } }) => {
+      console.log('getSession result:', session?.user?.email || 'no session')
       if (session?.user) {
         setUser(session.user)
+        console.log('Fetching profile for:', session.user.id)
         const profileData = await fetchProfile(session.user.id)
+        console.log('Profile fetched:', profileData)
         setProfile(profileData)
       }
+      console.log('Setting loading to false')
       setLoading(false)
     })
 
     // Écouter les changements
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: string, session: any) => {
-        console.log('Auth event:', event)
+        console.log('Auth event:', event, session?.user?.email)
         
         if (session?.user) {
           setUser(session.user)
+          console.log('Fetching profile for:', session.user.id)
           const profileData = await fetchProfile(session.user.id)
+          console.log('Profile fetched:', profileData)
           setProfile(profileData)
         } else {
           setUser(null)
           setProfile(null)
         }
+        console.log('Setting loading to false after event')
         setLoading(false)
       }
     )
