@@ -1,16 +1,10 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, useRef } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
-import { User } from '@supabase/supabase-js'
+import { User, SupabaseClient } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
 import { Profile } from '@/lib/supabase'
-
-// Client unique créé une seule fois
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
 
 type AuthContextType = {
   user: User | null
@@ -28,16 +22,30 @@ const AuthContext = createContext<AuthContextType>({
   refreshProfile: async () => {},
 })
 
+// Singleton pour le client
+let supabaseClient: SupabaseClient | null = null
+
+function getClient() {
+  if (!supabaseClient) {
+    supabaseClient = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+  }
+  return supabaseClient
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
+  const initialized = useRef(false)
 
-  const fetchProfile = async (userId: string): Promise<Profile | null> => {
+  const fetchProfile = async (userId: string, client: SupabaseClient): Promise<Profile | null> => {
     console.log('fetchProfile called for:', userId)
     try {
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from('profiles')
         .select('*')
         .eq('id', userId)
@@ -57,13 +65,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshProfile = async () => {
     if (user) {
-      const profileData = await fetchProfile(user.id)
+      const client = getClient()
+      const profileData = await fetchProfile(user.id, client)
       setProfile(profileData)
     }
   }
 
   const signOut = async () => {
-    await supabase.auth.signOut()
+    const client = getClient()
+    await client.auth.signOut()
     setUser(null)
     setProfile(null)
     router.push('/')
@@ -71,17 +81,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
+    if (initialized.current) return
+    initialized.current = true
+    
     console.log('AuthProvider useEffect running')
+    const client = getClient()
     
     const initAuth = async () => {
       try {
         console.log('Getting session...')
-        const { data: { session }, error } = await supabase.auth.getSession()
-        console.log('Session result:', session?.user?.email || 'no session', error)
+        const { data, error } = await client.auth.getSession()
+        console.log('Session result:', data?.session?.user?.email || 'no session', error)
         
-        if (session?.user) {
-          setUser(session.user)
-          const profileData = await fetchProfile(session.user.id)
+        if (data?.session?.user) {
+          setUser(data.session.user)
+          const profileData = await fetchProfile(data.session.user.id, client)
           setProfile(profileData)
         }
       } catch (err) {
@@ -94,13 +108,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     initAuth()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event: string, session: any) => {
+    const { data: { subscription } } = client.auth.onAuthStateChange(
+      async (event, session) => {
         console.log('Auth event:', event, session?.user?.email)
         
         if (session?.user) {
           setUser(session.user)
-          const profileData = await fetchProfile(session.user.id)
+          const profileData = await fetchProfile(session.user.id, client)
           setProfile(profileData)
         } else {
           setUser(null)
